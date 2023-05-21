@@ -11,12 +11,12 @@ defmodule Server.Player.Connection do
 
   def handle_continue(player_name, _) do
     [{supervisor_pid, _}] = Registry.lookup(Server.PlayerRegistry, player_name)
-    {:ok, state_pid} = Server.Player.Supervisor.get_state(supervisor_pid)
+    state_pid = Server.Player.Supervisor.get_state(supervisor_pid)
     {:noreply, state_pid}
   end
 
-  def handle_info({function, arguments}, state_pid) do
-    Task.start(Server.Player.State, function, [state_pid, arguments])
+  def handle_info({:input, action}, state_pid) do
+    Task.start(Server.Player.State, :input, [state_pid, action])
     {:noreply, state_pid}
   end
 end

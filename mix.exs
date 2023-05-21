@@ -11,6 +11,8 @@ defmodule Sprixe.MixProject do
   end
 
   defp deps do
-    []
+    [
+      {:logger_file_backend, "~> 0.0.13"},
+    ]
   end
 end

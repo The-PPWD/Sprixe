@@ -1,8 +1,12 @@
 defmodule Client.Application do
   use Application
 
+  require Logger
+
   @impl true
   def start(_, _) do
+    Logger.info("#{__MODULE__} starting.")
+
     setup_ex_ncurses()
 
     children = [
@@ -21,6 +25,7 @@ defmodule Client.Application do
 
   @impl true
   def stop(_) do
+    Logger.info("#{__MODULE__} stopping.")
     teardown_ex_ncurses()
   end
 

@@ -9,7 +9,7 @@ defmodule Server.MixProject do
       config_path: "../../config/config.exs",
       deps_path: "../../deps",
       lockfile: "../../mix.lock",
-      elixir: "~> 1.13",
+      elixir: "~> 1.15-dev",
       start_permanent: Mix.env() == :prod,
       deps: deps()
     ]
@@ -17,12 +17,14 @@ defmodule Server.MixProject do
 
   def application do
     [
-      extra_applications: [:logger],
+      extra_applications: [:logger, :logger_file_backend],
       mod: {Server.Application, []}
     ]
   end
 
   defp deps do
-    []
+    [
+      {:logger_file_backend, "~> 0.0.13"}
+    ]
   end
 end

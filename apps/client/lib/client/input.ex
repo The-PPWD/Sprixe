@@ -2,10 +2,6 @@ defmodule Client.Input do
   use GenServer, restart: :transient, significant: true
 
   @key_esc 27
-  @key_up 259
-  @key_down 258
-  @key_left 260
-  @key_right 261
 
   def start_link(_) do
     GenServer.start_link(__MODULE__, [])
@@ -21,6 +17,7 @@ defmodule Client.Input do
 
     case action do
       nil -> nil
+      :shutdown -> Client.Connection.disconnect()
       _ -> Client.Connection.send_input(action)
     end
 
@@ -34,10 +31,12 @@ defmodule Client.Input do
     ExNcurses.stop_listening()
   end
 
-  defp key_to_action(key) when key === ?q or key === @key_esc, do: :shutdown
-  defp key_to_action(key) when key === ?w or key === @key_up, do: :up
-  defp key_to_action(key) when key === ?s or key === @key_down, do: :down
-  defp key_to_action(key) when key === ?a or key === @key_left, do: :left
-  defp key_to_action(key) when key === ?d or key === @key_right, do: :right
+  defp key_to_action(@key_esc), do: :shutdown
+  defp key_to_action(?w), do: :move_forward
+  defp key_to_action(?s), do: :move_backward
+  defp key_to_action(?a), do: :move_left
+  defp key_to_action(?d), do: :move_right
+  defp key_to_action(?q), do: :turn_left
+  defp key_to_action(?e), do: :turn_right
   defp key_to_action(_), do: nil
 end

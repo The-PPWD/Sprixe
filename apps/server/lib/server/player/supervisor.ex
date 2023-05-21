@@ -34,6 +34,6 @@ defmodule Server.Player.Supervisor do
       |> List.keyfind(child_id, 0)
       |> elem(1)
 
-    {:ok, child_pid}
+    child_pid
   end
 end
