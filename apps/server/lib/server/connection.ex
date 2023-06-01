@@ -1,13 +1,16 @@
 defmodule Server.Connection do
   use GenServer
 
-  @tick_rate 1000
+  @tick_rate 300
 
   @map_state [
-    1, 1, 1, 1,
-    1, 0, 0, 1,
-    1, 0, 0, 1,
-    1, 1, 1, 1,
+    1, 1, 1, 1, 1, 1, 1,
+    1, 0, 0, 0, 0, 0, 1,
+    1, 0, 0, 0, 0, 0, 1,
+    1, 0, 0, 0, 0, 0, 1,
+    1, 0, 0, 0, 0, 0, 1,
+    1, 0, 0, 0, 0, 0, 1,
+    1, 1, 1, 1, 1, 1, 1,
   ]
 
   def start_link(_) do

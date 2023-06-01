@@ -3,219 +3,205 @@ defmodule Client.Render do
 
   require Logger
 
-  defstruct [:map_state, :local_player_state, :other_player_states, frame_count: 0]
+  defstruct [:map, :local_player, :other_players, frame: 0]
 
   @field_of_view :math.pi() / 2
   @half_field_of_view @field_of_view / 2
+
 
   def start_link(_) do
     options = [name: __MODULE__]
     GenServer.start_link(__MODULE__, [], options)
   end
 
-  def map(map_state) do
-    GenServer.cast(__MODULE__, {:map, map_state})
+
+  def map(map) do
+    GenServer.cast(__MODULE__, {:map, map})
   end
 
-  def tick(player_states) do
-    GenServer.cast(__MODULE__, {:tick, player_states})
+
+  def tick(players) do
+    GenServer.cast(__MODULE__, {:tick, players})
   end
+
 
   def init(_) do
     {:ok, %Client.Render{}}
   end
 
-  def handle_cast({:map, new_map_state}, %{map_state: old_map_state} = state) do
-    Logger.info("Updating map from #{inspect(old_map_state)} to #{inspect(new_map_state)}.")
-    new_state = %{state | map_state: new_map_state}
-    {:noreply, new_state}
+
+  def handle_cast({:map, new_map}, %{map: old_map} = state) do
+    Logger.info("Updating map from #{inspect(old_map)} to #{inspect(new_map)}.")
+    state = %{state | map: new_map}
+    {:noreply, state}
   end
 
-  def handle_cast({:tick, new_player_states}, %{local_player_state: old_local_player_state, other_player_states: old_other_player_states, frame_count: frame_count} = state) do
-    new_local_player_state = Enum.find(new_player_states, fn %{player_name: player_name} -> player_name === node() end)
-    Logger.info("Updating local player state from #{inspect(old_local_player_state)} to #{inspect(new_local_player_state)}.")
+  def handle_cast({:tick, new_players}, %{local_player: old_local_player, other_players: old_other_players, frame: frame} = state) do
+    new_local_player = Enum.find(new_players, fn %{player_name: player_name} -> player_name === node() end)
+    Logger.info("Updating local player from #{inspect(old_local_player)} to #{inspect(new_local_player)}.")
 
-    new_other_player_states = List.delete(new_player_states, new_local_player_state)
-    Logger.info("Updating other player states from #{inspect(old_other_player_states)} to #{inspect(new_other_player_states)}.")
+    new_other_players = List.delete(new_players, new_local_player)
+    Logger.info("Updating other players from #{inspect(old_other_players)} to #{inspect(new_other_players)}.")
 
-    new_state = %{state | local_player_state: new_local_player_state, other_player_states: new_other_player_states, frame_count: frame_count + 1}
-    render(new_state)
-    {:noreply, new_state}
+    state = %{state | local_player: new_local_player, other_players: new_other_players, frame: frame + 1}
+
+    render(state)
+
+    {:noreply, state}
   end
 
-  defp render(%{frame_count: frame_count} = state) do
-#    local_player_state =
-#      Enum.find(player_states, fn %{player_name: player_name} -> player_name === node() end)
+
+  def render(%{frame: frame} = state) do
+    Logger.metadata(frame: frame)
 
     ExNcurses.clear()
-
-    Logger.metadata(frame_count: frame_count)
-
-#    render_map(local_player_state, map_state)
     render_map(state)
-
-    #    other_players_states = List.delete(player_states, local_player_state)
-    #    render_players(local_player_state, other_players_states)
-  end
-
-  def render_map(%{local_player_state: %{yaw: yaw}} = state) do
-    # can be optimized by taking first and last and dividing by cols?
-    angle_step = @field_of_view / ExNcurses.cols()
-    first_angle = yaw - @half_field_of_view + angle_step
-    last_angle = yaw + @half_field_of_view - angle_step
-
-    angles = Stream.iterate(first_angle, &(&1 + angle_step)) |> Enum.take_while(&(&1 <= last_angle))
-    columns = Stream.iterate(0, &(&1 + 1)) |> Enum.take_while(&(&1 <= length(angles)))
-
-    Enum.zip(angles, columns) |> Enum.each(&render_screen_column(&1, state))
-
+#    render_players(state)
     ExNcurses.refresh()
   end
 
-#  def render_map(%{yaw: player_yaw} = player_state, map_state) do
-#    Logger.info("Rendering map #{inspect(map_state)} from player #{inspect(player_state)}.")
-#
-#    # can be optimized by taking first and last and dividing by cols?
-#    screen_column_count = ExNcurses.cols()
-#    screen_column_angle_step = @field_of_view / screen_column_count
-#    first_screen_column_angle = player_yaw - @half_field_of_view + screen_column_angle_step
-#    last_screen_column_angle = player_yaw + @half_field_of_view - screen_column_angle_step
-#
-#    #screen_column_angles = first_screen_column_angle..last_screen_column_angle//screen_column_angle_step
-#
-#    screen_column_angles = Stream.iterate(first_screen_column_angle, &(&1 + screen_column_angle_step))
-#      |> Enum.take_while(&(&1 <= last_screen_column_angle))
-#
-#    Logger.debug("screen column angles #{inspect(screen_column_angles)}.")
-#
-#    #screen_columns = 0..length(screen_column_angles)
-#
-#    screen_columns = Stream.iterate(0, &(&1 + 1)) |> Enum.take_while(&(&1 <= length(screen_column_angles)))
-#
-#    Logger.debug("screen columns #{inspect(screen_columns)}.")
-#
-#    Enum.zip(screen_column_angles, screen_columns) |> Enum.each(&render_screen_column(&1, player_state, map_state))
-#
-#    ExNcurses.refresh()
-#  end
 
-  def render_screen_column({angle, column}, %{local_player_state: %{x: player_x, z: player_z}} = state) do
-    ray_x = :math.cos(angle)
-    ray_z = :math.sin(angle)
+  def render_map(%{local_player: %{yaw: yaw}} = state) do
+    # could be better to take first and last and divide by cols?
+    angle_step = @field_of_view / ExNcurses.cols()
+    first_angle = yaw + @half_field_of_view
+    last_angle = yaw - @half_field_of_view
 
-    Logger.debug("Ray position (x: #{ray_x}, z: #{ray_z}).")
+    angles = Stream.iterate(first_angle, &(&1 - angle_step)) |> Enum.take_while(&(&1 >= last_angle))
 
-    {x_direction, player_partial_x} =
-      case ray_x < player_x do
-        false -> {:east, trunc(player_x) - player_x}
-        true -> {:west, 1 - (player_x - trunc(player_x))}
-      end
+    # math right here?
+    columns = Stream.iterate(0, &(&1 + 1)) |> Enum.take_while(&(&1 < length(angles)))
 
-    Logger.debug("X direction #{x_direction}.")
-    Logger.debug("Player partial x #{player_partial_x}.")
+    Enum.zip(angles, columns) |> Enum.each(&render_screen_column(&1, state))
+  end
 
-    {z_direction, player_partial_z} =
-      case ray_z < player_z do
-        false -> {:north, 1 - (player_z - trunc(player_z))}
-        true -> {:south, trunc(player_z) - player_z}
-      end
 
-    Logger.debug("Z direction #{z_direction}.")
-    Logger.debug("Player partial z #{player_partial_z}.")
+  def render_screen_column({angle, column}, %{local_player: %{position: player_position}} = state) do
+    {relative_ray_x, relative_ray_z} = ray_position = angle_to_position(angle)
+    Logger.debug("Ray position: #{inspect(ray_position)}.")
 
-    inverse_slope = ray_z / ray_x
-    slope = ray_x / ray_z
+    {x_direction, z_direction} = ray_directions = directions_from_position(ray_position)
+    Logger.debug("Ray directions: #{inspect(ray_directions)}.")
 
-    Logger.debug("Slope #{slope}.")
-    Logger.debug("Inverse slope #{inverse_slope}.")
+    {partial_x, partial_z} = partials = partial_positions(player_position, ray_directions)
+    Logger.debug("Partials: #{inspect(partials)}.")
 
-    ray_growth_per_x = (1 + :math.pow(inverse_slope, 2)) |> :math.sqrt()
-    ray_growth_per_z = (1 + :math.pow(slope, 2)) |> :math.sqrt()
+    x_scalar = (1 + :math.pow(relative_ray_z / relative_ray_x, 2)) |> :math.sqrt()
+    z_scalar = (1 + :math.pow(relative_ray_x / relative_ray_z, 2)) |> :math.sqrt()
+    Logger.debug("Scalars: #{inspect({x_scalar, z_scalar})}.")
 
-    Logger.debug("Ray growth per x #{ray_growth_per_x}.")
-    Logger.debug("Ray growth per z #{ray_growth_per_z}.")
+    collision_1 = cast_ray({relative_ray_x, relative_ray_z}, x_direction, x_scalar, partial_x, state)
+    collision_2 = cast_ray({relative_ray_x, relative_ray_z}, z_direction, z_scalar, partial_z, state)
 
-    collision_1 =
-      cast_ray({ray_x, ray_z}, x_direction, ray_growth_per_x, player_partial_x, state)
+    Logger.debug("Collisions: #{inspect(collision_1)}, #{inspect(collision_2)}.")
 
-    Logger.debug("Collision 1 #{inspect(collision_1)}.")
+    collision_position =
+      Enum.filter([collision_1, collision_2], &(&1 !== nil))
+      |> Enum.min(&minimum_position/2)
 
-    collision_2 =
-      cast_ray({ray_x, ray_z}, z_direction, ray_growth_per_z, player_partial_z, state)
-
-    Logger.debug("Collision 2 #{inspect(collision_2)}.")
-
-    {collision_x, collision_z} = Enum.filter([collision_1, collision_2], &(&1 !== nil)) |> Enum.min()
-
-    x_distance = collision_x - player_x
-    z_distance = collision_z - player_z
-
-    Logger.debug("Distance (x: #{x_distance}, z: #{z_distance}).")
-
-    distance = (:math.pow(x_distance, 2) + :math.pow(z_distance, 2)) |> :math.sqrt() |> ceil()
-
-    Logger.debug("Distance #{distance}.")
+    distance = position_to_distance(collision_position) |> :math.ceil()
 
     screen_height = ExNcurses.lines()
 
-    # completely arbitrary
-    column_height = abs(distance)
+    # TODO: Why does `ceil(screen_height / 2 - screen_height / distance)` not work?
+    # TODO: Also, this code will break for distances < 1
+    wall_top = ceil(screen_height / 2 - screen_height / (1 + distance))
+    wall_bottom = ceil(screen_height / 2 + screen_height / (1 + distance))
 
-    column_offset = round((screen_height - column_height) / 2)
-
-    column_offset..(column_height + column_offset) |> Enum.each(&ExNcurses.mvaddstr(&1, column, "*"))
+    wall_top..wall_bottom |> Enum.each(&ExNcurses.mvaddstr(&1, column, "*"))
   end
 
-  def cast_ray({x, z}, direction, ray_growth_scalar, player_partial, state) do
-    {x, z} = case direction do
-      :north ->
-        {x + ray_growth_scalar * (player_partial || 1),
-        z + (player_partial || 1)}
 
-      :south ->
-        {x + ray_growth_scalar * (player_partial || 1),
-        z + (player_partial || -1)}
+  def cast_ray(position, direction, scalar, 0, state), do: cast_ray(position, direction, scalar, state)
 
-      :west ->
-        {x + (player_partial || -1),
-        z + ray_growth_scalar * (player_partial || 1)}
+  def cast_ray(position, direction, scalar, partial, state) do
+    position = update_position(position, direction, scalar, partial)
+    cast_ray(position, direction, scalar, state)
+  end
 
-      :east ->
-        {x + (player_partial || 1),
-        z + ray_growth_scalar * (player_partial || 1)}
-    end
 
-    Logger.debug("Casted ray (x: #{x}, z: #{z}).")
+  def cast_ray({relative_ray_x, relative_ray_z}, direction, scalar, %{local_player: %{position: {player_x, player_z}}} = state) do
+    rounded_absolute_ray_position = {round(relative_ray_x + player_x), round(relative_ray_z + player_z)}
+    rounded_relative_ray_position = {round(relative_ray_x), round(relative_ray_z)}
 
-    case hit_wall({x, z}, state) do
-      false -> cast_ray({x, z}, direction, ray_growth_scalar, nil, state)
-      true -> {x, z}
+    Logger.debug("Relative ray x: #{relative_ray_x}.")
+    Logger.debug("Relative ray z: #{relative_ray_z}.")
+
+    Logger.debug("Casting ray #{inspect(rounded_absolute_ray_position)}.")
+
+    case hit_wall(rounded_absolute_ray_position, state) do
       nil -> nil
+      true -> rounded_relative_ray_position
+      false ->
+        rounded_relative_ray_position = update_position(rounded_relative_ray_position, direction, scalar)
+        cast_ray(rounded_relative_ray_position, direction, scalar, state)
     end
   end
 
-  def hit_wall({x, z}, %{map_state: map_state} = state) do
+
+  def hit_wall({x, z}, _) when x < 0 or z < 0, do: nil
+
+  def hit_wall({x, z}, %{map: map} = state) do
+    Logger.debug("Checking if (#{x}, #{z}) hit a wall.")
     index = map_position_to_index({x, z}, state)
 
-    Logger.debug("Map index #{index}.")
-
     case index === nil do
-      false -> Enum.at(map_state, index) === 1
       true -> nil
+      false -> Enum.at(map, index) === 1
     end
   end
 
-  # maps must be square and a minimum of 9 in length
-  def map_position_to_index({x, z}, %{map_state: map_state}) do
-    map_state_length = length(map_state)
 
-    # trunc() because :math.sqrt() returns a float
-    map_width = map_state_length |> :math.sqrt() |> trunc()
+  def map_position_to_index({x, z}, %{map: map}) do
+    map_length = length(map)
+
+    map_width = map_length |> :math.sqrt() |> trunc()
     index = map_width * floor(z) + floor(x)
 
-    case index < map_state_length do
-      false -> nil
+    case index < map_length do
       true -> index
+      false -> nil
     end
   end
+
+
+  def angle_to_position(angle), do: {:math.sin(angle), :math.cos(angle)}
+
+
+  def directions_from_position({x, z}),
+       do: {x_direction_from_position(x), z_direction_from_position(z)}
+
+
+  def x_direction_from_position(x) when x < 0, do: :east
+  def x_direction_from_position(_), do: :west
+
+
+  def z_direction_from_position(z) when z < 0, do: :south
+  def z_direction_from_position(_), do: :north
+
+
+  def partial_positions({x_position, z_position}, {x_direction, z_direction}),
+       do: {partial_position(x_position, x_direction), partial_position(z_position, z_direction)}
+
+  def partial_position(position, direction) when direction in [:west, :north], do: ceil(position) - position
+  def partial_position(position, direction) when direction in [:east, :south], do: trunc(position) - position
+
+
+  def minimum_position(position_a, position_b),
+      do: position_to_distance(position_a) <= position_to_distance(position_b)
+
+
+  def position_to_distance({x, z}), do: (:math.pow(x, 2) + :math.pow(z, 2)) |> :math.sqrt()
+
+
+  def update_position({x, z}, direction, scalar, partial) when direction in [:north, :south],
+      do: {x + partial * scalar, z + partial}
+
+  def update_position({x, z}, direction, scalar, partial) when direction in [:east, :west],
+      do: {x + partial, z + partial * scalar}
+
+  def update_position({x, z}, :north, scalar), do: {x + scalar, z + 1}
+  def update_position({x, z}, :south, scalar), do: {x + scalar, z - 1}
+  def update_position({x, z}, :east, scalar), do: {x - 1, z + scalar}
+  def update_position({x, z}, :west, scalar), do: {x + 1, z + scalar}
 end

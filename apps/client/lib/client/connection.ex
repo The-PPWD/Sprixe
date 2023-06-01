@@ -3,7 +3,7 @@ defmodule Client.Connection do
 
   require Logger
 
-  @server :one@Orang
+  @server :server@Orang
 
   def start_link(_) do
     options = [name: __MODULE__]
